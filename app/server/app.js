@@ -22,6 +22,7 @@ const upload = multer({
 const deepSeekBaseUrl = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
 const deepSeekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const ocrLanguages = process.env.OCR_LANGS || 'chi_sim+eng';
+const apiRouter = express.Router();
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || true,
@@ -158,7 +159,7 @@ async function recognizeImage(buffer) {
   }
 }
 
-app.get('/api/health', (_req, res) => {
+apiRouter.get('/health', (_req, res) => {
   res.json({
     ok: true,
     deepseekConfigured: Boolean(process.env.DEEPSEEK_API_KEY),
@@ -167,7 +168,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.post('/api/solve/text', async (req, res, next) => {
+apiRouter.post('/solve/text', async (req, res, next) => {
   try {
     const question = String(req.body?.question || '').trim();
 
@@ -182,7 +183,7 @@ app.post('/api/solve/text', async (req, res, next) => {
   }
 });
 
-app.post('/api/ocr', upload.single('image'), async (req, res, next) => {
+apiRouter.post('/ocr', upload.single('image'), async (req, res, next) => {
   try {
     if (!req.file?.buffer) {
       return res.status(400).json({ error: '请上传题目图片' });
@@ -200,7 +201,7 @@ app.post('/api/ocr', upload.single('image'), async (req, res, next) => {
   }
 });
 
-app.post('/api/solve/image', upload.single('image'), async (req, res, next) => {
+apiRouter.post('/solve/image', upload.single('image'), async (req, res, next) => {
   try {
     if (!req.file?.buffer) {
       return res.status(400).json({ error: '请上传题目图片' });
@@ -218,6 +219,9 @@ app.post('/api/solve/image', upload.single('image'), async (req, res, next) => {
     return next(error);
   }
 });
+
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;
