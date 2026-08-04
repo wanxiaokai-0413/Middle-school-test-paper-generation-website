@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import type { AnalysisResult as AnalysisResultType, VideoResult, VideoConfig } from '@/types/app';
-import { analyzeQuestion, generateExplanationVideo } from '@/services/aiService';
+import type { AnalysisResult as AnalysisResultType } from '@/types/app';
+import { analyzeQuestion } from '@/services/aiService';
 import { QuestionInput } from './QuestionInput';
 import { AnalysisResult } from './AnalysisResult';
-import { VideoPlayer } from './VideoPlayer';
-import { presetAvatars } from '@/data/avatars';
 import { toast } from 'sonner';
 import { Sparkles, History, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,26 +12,20 @@ interface HistoryItem {
   id: string;
   question: string;
   timestamp: Date;
-  hasVideo: boolean;
 }
 
 export function AITutorApp() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResultType | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [generatedVideo, setGeneratedVideo] = useState<VideoResult | null>(null);
-  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [showVideo, setShowVideo] = useState(false);
 
   // 处理题目提交
-  const handleQuestionSubmit = async (question: string, imageData?: string | null) => {
+  const handleQuestionSubmit = async (question: string) => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
-    setGeneratedVideo(null);
-    setShowVideo(false);
 
     try {
-      const result = await analyzeQuestion(question, imageData);
+      const result = await analyzeQuestion(question);
       setAnalysisResult(result);
       
       // 添加到历史记录
@@ -41,59 +33,15 @@ export function AITutorApp() {
         id: Date.now().toString(),
         question: question.slice(0, 50) + (question.length > 50 ? '...' : ''),
         timestamp: new Date(),
-        hasVideo: false,
       };
       setHistory(prev => [historyItem, ...prev]);
       
       toast.success('分析完成！');
     } catch (error) {
-      toast.error('分析失败，请重试');
+      toast.error(error instanceof Error ? error.message : '分析失败，请重试');
     } finally {
       setIsAnalyzing(false);
     }
-  };
-
-  // 生成视频
-  const handleGenerateVideo = async () => {
-    if (!analysisResult) return;
-
-    setIsGeneratingVideo(true);
-    try {
-      const videoConfig: VideoConfig = {
-        avatarId: presetAvatars[0].id, // 使用默认形象
-        background: 'classroom',
-        subtitleEnabled: true,
-        highlightFormulas: true,
-        explanationSpeed: 'normal',
-        showStepByStep: true,
-      };
-
-      const video = await generateExplanationVideo(analysisResult, videoConfig);
-      setGeneratedVideo(video);
-      setShowVideo(true);
-      
-      // 更新历史记录
-      setHistory(prev => prev.map(item => 
-        item.id === prev[0]?.id ? { ...item, hasVideo: true } : item
-      ));
-      
-      toast.success('视频生成成功！');
-    } catch (error) {
-      toast.error('视频生成失败，请重试');
-    } finally {
-      setIsGeneratingVideo(false);
-    }
-  };
-
-  // 返回分析结果
-  const handleBackToAnalysis = () => {
-    setShowVideo(false);
-  };
-
-  // 重新生成视频
-  const handleRegenerateVideo = () => {
-    setShowVideo(false);
-    handleGenerateVideo();
   };
 
   // 清空历史
@@ -126,22 +74,8 @@ export function AITutorApp() {
           />
 
           {/* 分析结果 */}
-          {analysisResult && !showVideo && (
-            <AnalysisResult
-              result={analysisResult}
-              onGenerateVideo={handleGenerateVideo}
-              isGeneratingVideo={isGeneratingVideo}
-            />
-          )}
-
-          {/* 视频播放 */}
-          {showVideo && generatedVideo && analysisResult && (
-            <VideoPlayer
-              video={generatedVideo}
-              analysisResult={analysisResult}
-              onBack={handleBackToAnalysis}
-              onRegenerate={handleRegenerateVideo}
-            />
+          {analysisResult && (
+            <AnalysisResult result={analysisResult} />
           )}
 
           {/* 功能介绍 */}
@@ -217,11 +151,6 @@ export function AITutorApp() {
                     <span className="text-xs text-gray-400">
                       {item.timestamp.toLocaleTimeString()}
                     </span>
-                    {item.hasVideo && (
-                      <span className="px-2 py-0.5 bg-purple-100 text-purple-600 rounded-full text-xs">
-                        有视频
-                      </span>
-                    )}
                   </div>
                 </div>
               ))}

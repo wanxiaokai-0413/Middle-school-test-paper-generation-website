@@ -10,12 +10,40 @@ import {
   Loader2,
   Sparkles
 } from 'lucide-react';
-import { recognizeQuestionFromImage, transcribeVoice } from '@/services/aiService';
+import { recognizeQuestionFromImage } from '@/services/aiService';
 import { toast } from 'sonner';
 
 interface QuestionInputProps {
-  onSubmit: (question: string, imageData?: string | null) => void;
+  onSubmit: (question: string) => void;
   isLoading: boolean;
+}
+
+type SpeechResultList = {
+  length: number;
+  [index: number]: {
+    isFinal: boolean;
+    [index: number]: {
+      transcript: string;
+    };
+  };
+};
+
+type BrowserSpeechRecognition = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: { resultIndex: number; results: SpeechResultList }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => BrowserSpeechRecognition;
+    webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+  }
 }
 
 export function QuestionInput({ onSubmit, isLoading }: QuestionInputProps) {
@@ -25,7 +53,7 @@ export function QuestionInput({ onSubmit, isLoading }: QuestionInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
   // 处理图片上传
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,52 +76,58 @@ export function QuestionInput({ onSubmit, isLoading }: QuestionInputProps) {
     try {
       const recognizedText = await recognizeQuestionFromImage(imageData);
       setQuestion(recognizedText);
-      toast.success('图片识别成功');
+      toast.success('图片识别成功，请检查题干后提交');
     } catch (error) {
-      toast.error('识别失败，请手动输入');
+      toast.error(error instanceof Error ? error.message : '识别失败，请手动输入');
     } finally {
       setIsProcessing(false);
     }
   };
 
   // 语音录制
-  const startVoiceRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      const audioChunks: Blob[] = [];
+  const startVoiceRecording = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        setIsProcessing(true);
-        try {
-          const transcribedText = await transcribeVoice(audioBlob);
-          setQuestion(transcribedText);
-          toast.success('语音识别成功');
-        } catch (error) {
-          toast.error('识别失败，请手动输入');
-        } finally {
-          setIsProcessing(false);
-        }
-      };
-
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (error) {
-      toast.error('无法访问麦克风');
+    if (!SpeechRecognition) {
+      toast.error('当前浏览器不支持语音识别，请使用 Chrome 或手动输入');
+      return;
     }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        transcript += event.results[i][0].transcript;
+      }
+
+      if (transcript.trim()) {
+        setQuestion((prev) => `${prev}${prev.trim() ? '\n' : ''}${transcript.trim()}`);
+        toast.success('语音识别成功，请检查题干后提交');
+      }
+    };
+
+    recognition.onerror = () => {
+      toast.error('语音识别失败，请重试或手动输入');
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
   };
 
   const stopVoiceRecording = () => {
-    mediaRecorderRef.current?.stop();
+    recognitionRef.current?.stop();
     setIsRecording(false);
-    // 停止所有音轨
-    mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
   };
 
   // 提交
@@ -102,7 +136,7 @@ export function QuestionInput({ onSubmit, isLoading }: QuestionInputProps) {
       toast.error('请输入题目');
       return;
     }
-    onSubmit(question, imagePreview);
+    onSubmit(question);
   };
 
   // 清空
@@ -200,6 +234,7 @@ export function QuestionInput({ onSubmit, isLoading }: QuestionInputProps) {
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              capture="environment"
               onChange={handleImageUpload}
               className="hidden"
             />

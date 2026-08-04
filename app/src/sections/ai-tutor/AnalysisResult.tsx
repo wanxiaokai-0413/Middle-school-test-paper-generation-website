@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { AnalysisResult as AnalysisResultType } from '@/types/app';
-import { Button } from '@/components/ui/button';
 import { 
   BookOpen, 
   Lightbulb, 
@@ -8,18 +7,14 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
-  Play,
-  Sparkles,
   CheckCircle
 } from 'lucide-react';
 
 interface AnalysisResultProps {
   result: AnalysisResultType;
-  onGenerateVideo: () => void;
-  isGeneratingVideo: boolean;
 }
 
-export function AnalysisResult({ result, onGenerateVideo, isGeneratingVideo }: AnalysisResultProps) {
+export function AnalysisResult({ result }: AnalysisResultProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     solution: true,
     tips: false,
@@ -162,31 +157,6 @@ export function AnalysisResult({ result, onGenerateVideo, isGeneratingVideo }: A
               </ul>
             </div>
           )}
-        </div>
-
-        {/* 生成视频按钮 */}
-        <div className="pt-4 border-t border-gray-100">
-          <Button
-            onClick={onGenerateVideo}
-            disabled={isGeneratingVideo}
-            className="w-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white h-12 text-base"
-          >
-            {isGeneratingVideo ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                正在生成讲解视频...
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5 mr-2" />
-                <Sparkles className="w-4 h-4 mr-1" />
-                生成AI讲解视频
-              </>
-            )}
-          </Button>
-          <p className="text-center text-xs text-gray-400 mt-2">
-            虚拟老师将为您详细讲解这道题目
-          </p>
         </div>
       </div>
     </div>
